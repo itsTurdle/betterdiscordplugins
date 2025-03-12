@@ -1,6 +1,7 @@
 /**
  * @name Send Spotify Song
  * @version 2.13.3
+ * @source https://github.com/itsTurdle/betterdiscordplugins
  * @description A BetterDiscord plugin that can easily grab songs and send previews to the channel you are in.
  * @author its_turdle
  */
