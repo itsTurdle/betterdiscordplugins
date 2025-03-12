@@ -1,7 +1,8 @@
 /**
  * @name Typing SFX
- * @version 1.8.1
- * @description A BetterDiscord plugin that polls only editable text boxes every frame for text length changes and plays a custom MP3 sound effect. When deleting text, it uses a separate lower pitch defined in the settings.
+ * @version 1.8.2
+ * @source https://github.com/itsTurdle/betterdiscordplugins
+ * @description A BetterDiscord plugin that polls only editable text boxes every frame for text length changes and plays a custom MP3 sound effect using the Web Audio API. When deleting text, it uses a separate lower pitch defined in the settings.
  */
 
 module.exports = meta => {
@@ -19,6 +20,8 @@ module.exports = meta => {
   let rafId = 0
   let lastActive = null
   let lastLength = 0
+  const audioContext = new (window.AudioContext || window.webkitAudioContext)()
+  let audioBuffer = null
 
   const loadSettings = () => {
     const s = BdApi.Data.load(meta.name, "settings")
@@ -27,6 +30,20 @@ module.exports = meta => {
 
   const saveSettings = () => {
     BdApi.Data.save(meta.name, "settings", settings)
+  }
+
+  const updateAudioBuffer = () => {
+    if (!settings.mp3DataUrl) {
+      audioBuffer = null
+      return
+    }
+    fetch(settings.mp3DataUrl)
+      .then(res => res.arrayBuffer())
+      .then(data => audioContext.decodeAudioData(data))
+      .then(buffer => {
+        audioBuffer = buffer
+      })
+      .catch(err => console.error("Error decoding audio data:", err))
   }
 
   const getTextLength = el => {
@@ -45,7 +62,6 @@ module.exports = meta => {
       return !el.readOnly && !el.disabled
     }
     if (el.isContentEditable) {
-      // Only consider elements with an explicit true (or not "false") contenteditable attribute.
       const ce = el.getAttribute("contenteditable")
       return ce === "true" || ce === "" || ce === null
     }
@@ -61,19 +77,25 @@ module.exports = meta => {
       }
       const currentLength = getTextLength(active)
       if (currentLength !== lastLength) {
-        try {
-          const audio = new Audio(settings.mp3DataUrl)
-          if (currentLength < lastLength) {
-            audio.playbackRate = settings.deleteMinPlaybackRate +
-              Math.random() * (settings.deleteMaxPlaybackRate - settings.deleteMinPlaybackRate)
-          } else {
-            audio.playbackRate = settings.minPlaybackRate +
-              Math.random() * (settings.maxPlaybackRate - settings.minPlaybackRate)
+        if (audioBuffer) {
+          try {
+            const source = audioContext.createBufferSource()
+            source.buffer = audioBuffer
+            let rate
+            if (currentLength < lastLength) {
+              rate = settings.deleteMinPlaybackRate + Math.random() * (settings.deleteMaxPlaybackRate - settings.deleteMinPlaybackRate)
+            } else {
+              rate = settings.minPlaybackRate + Math.random() * (settings.maxPlaybackRate - settings.minPlaybackRate)
+            }
+            source.playbackRate.value = rate
+            const gainNode = audioContext.createGain()
+            gainNode.gain.value = settings.volume
+            source.connect(gainNode)
+            gainNode.connect(audioContext.destination)
+            source.start(0)
+          } catch (err) {
+            console.error("Typing SFX Error:", err)
           }
-          audio.volume = settings.volume
-          audio.play().catch(err => console.error("Typing SFX playback failed:", err))
-        } catch (err) {
-          console.error("Typing SFX Error:", err)
         }
         lastLength = currentLength
       }
@@ -87,6 +109,7 @@ module.exports = meta => {
   return {
     start() {
       loadSettings()
+      updateAudioBuffer()
       rafId = requestAnimationFrame(pollActiveTextbox)
     },
     stop() {
@@ -126,6 +149,7 @@ module.exports = meta => {
           reader.onload = e => {
             settings.mp3DataUrl = e.target.result
             saveSettings()
+            updateAudioBuffer()
           }
           reader.onerror = e => console.error("Error reading file", e)
           reader.readAsDataURL(f)
