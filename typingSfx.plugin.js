@@ -1,6 +1,7 @@
 /**
  * @name Typing SFX
  * @version 1.1.0
+ * @source https://github.com/itsTurdle/betterdiscordplugins
  * @description A BetterDiscord plugin for custom MP3 typing sound effects. By default, it plays a sound whenever text length changes (including removal). Check "Play Sound Only On New Characters" in settings to disable removal sounds.
  */
 
