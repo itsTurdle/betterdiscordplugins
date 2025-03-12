@@ -2,7 +2,7 @@
  * @name Send Spotify Song
  * @version 2.13.3
  * @description A BetterDiscord plugin that can easily grab songs and send previews to the channel you are in.
- * 
+ * @author its_turdle
  */
 module.exports = class SendSpotifySong {
     constructor() {
