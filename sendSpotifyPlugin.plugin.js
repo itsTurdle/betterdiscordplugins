@@ -84,7 +84,6 @@ module.exports = class SendSpotifySong {
             button.style.cursor = "pointer";
             button.style.color = "var(--text-muted)";
             button.style.position = "relative";
-            button.style.top = "6px";
             button.addEventListener("mouseenter", () => {
                 button.style.color = "var(--text-normal)";
             });
