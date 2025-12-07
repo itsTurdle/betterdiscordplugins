@@ -1,6 +1,6 @@
 /**
  * @name Send Spotify Song
- * @version 2.13.4
+ * @version 2.14.0
  * @source https://github.com/itsTurdle/betterdiscordplugins
  * @description A BetterDiscord plugin that can easily grab songs and send previews to the channel you are in.
  * @author its_turdle
@@ -10,7 +10,7 @@ module.exports = class SendSpotifySong {
         this._config = {
             info: {
                 name: "SendSpotifySong",
-                version: "2.13.4",
+                version: "2.14.0",
                 description: "Easily grab songs and send previews via embeds."
             }
         };
@@ -25,27 +25,28 @@ module.exports = class SendSpotifySong {
         this.settings = Object.assign({}, this.defaultSettings, BdApi.Data.load(this._config.info.name, "settings"));
         this.buttonId = "send-spotify-song-button";
         this.checkInterval = null;
+        this.cachedToken = null;
+        this.MASK_STRING = "*||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||||||||||*";
     }
 
     load() {}
 
     start() {
-        BdApi.DOM.addStyle("SendSpotifySong_Styles", `
-            * {
-                -ms-overflow-style: none;
-                scrollbar-width: none;
-            }
-            *::-webkit-scrollbar {
-                width: 0 !important;
-                display: none !important;
-            }
-        `);
+        this.patchSend();
         this.insertButton();
+        this.preloadToken();
         this.checkInterval = setInterval(() => {
             if (!document.getElementById(this.buttonId)) {
                 this.insertButton();
             }
         }, 1000);
+    }
+
+    async preloadToken() {
+        if (this.settings.client_id && this.settings.client_secret) {
+            this.cachedToken = await this.getAccessToken();
+            setTimeout(() => this.preloadToken(), 3500 * 1000);
+        }
     }
 
     stop() {
@@ -54,29 +55,59 @@ module.exports = class SendSpotifySong {
             clearInterval(this.checkInterval);
             this.checkInterval = null;
         }
-        BdApi.DOM.removeStyle("SendSpotifySong_Styles");
+        BdApi.Patcher.unpatchAll("SendSpotifySong");
+    }
+
+    patchSend() {
+        const MessageActions = BdApi.Webpack.getModule(m => m?.sendMessage && m?.receiveMessage);
+        if (MessageActions) {
+            BdApi.Patcher.before("SendSpotifySong", MessageActions, "sendMessage", (_, args) => {
+                if (args[1]?.content?.includes("<mask>")) {
+                    args[1].content = args[1].content.replace(/<mask>/g, this.MASK_STRING);
+                }
+            });
+        }
     }
 
     insertButton() {
         const container = document.querySelector("form [class*=channelTextArea] [class*=buttons]");
         if (container && !document.getElementById(this.buttonId)) {
-            const button = document.createElement("button");
-            button.id = this.buttonId;
-            button.innerHTML = `
-                <svg viewBox="0 0 24 24" width="100%" height="100%" fill="currentColor">
+            const existingButton = container.querySelector("[class*=buttonContainer]");
+            const innerButton = existingButton?.querySelector("[class*=button_]");
+            
+            const wrapper = document.createElement("div");
+            wrapper.id = this.buttonId;
+            wrapper.className = existingButton?.className || "";
+            wrapper.style.marginRight = "8px";
+            
+            const button = document.createElement("div");
+            button.className = innerButton?.className || "";
+            button.setAttribute("role", "button");
+            button.setAttribute("tabindex", "0");
+            button.style.cursor = "pointer";
+            
+            const iconWrapper = document.createElement("div");
+            iconWrapper.className = innerButton?.firstElementChild?.className || "";
+            iconWrapper.style.cssText = "display: flex; width: 24px; height: 24px; align-items: center; justify-content: center;";
+            iconWrapper.innerHTML = `
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" 
+                     style="color: var(--interactive-normal); transition: color 0.15s ease;">
                     <path d="M9 3v10.55A4 4 0 1 0 11 17V7h4V3H9z"/>
                 </svg>
             `;
-            button.style.cssText = `
-                width: 32px; height: 32px; box-sizing: border-box; padding: 4px;
-                display: inline-flex; align-items: center; justify-content: center;
-                margin-right: 8px; background-color: transparent; border: none;
-                cursor: pointer; color: var(--text-muted); position: relative;
-            `;
-            button.addEventListener("mouseenter", () => button.style.color = "var(--text-normal)");
-            button.addEventListener("mouseleave", () => button.style.color = "var(--text-muted)");
-            button.addEventListener("click", () => this.showModal());
-            container.appendChild(button);
+            
+            button.appendChild(iconWrapper);
+            wrapper.appendChild(button);
+            
+            wrapper.addEventListener("mouseenter", () => {
+                iconWrapper.querySelector("svg").style.color = "var(--interactive-hover)";
+            });
+            wrapper.addEventListener("mouseleave", () => {
+                iconWrapper.querySelector("svg").style.color = "var(--interactive-normal)";
+            });
+            wrapper.addEventListener("click", () => this.showModal());
+            
+            container.appendChild(wrapper);
         }
     }
 
@@ -90,18 +121,16 @@ module.exports = class SendSpotifySong {
     }
 
     async getAccessToken() {
-        const tokenUrl = "https://accounts.spotify.com/api/token";
-        const credentials = btoa(`${this.settings.client_id}:${this.settings.client_secret}`);
         if (!this.settings.client_id || !this.settings.client_secret) {
             BdApi.UI.showToast("Spotify client_id or client_secret not set.", { type: "error" });
             return null;
         }
         try {
-            const response = await fetch(tokenUrl, {
+            const response = await fetch("https://accounts.spotify.com/api/token", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/x-www-form-urlencoded",
-                    "Authorization": "Basic " + credentials
+                    "Authorization": "Basic " + btoa(`${this.settings.client_id}:${this.settings.client_secret}`)
                 },
                 body: "grant_type=client_credentials"
             });
@@ -115,16 +144,36 @@ module.exports = class SendSpotifySong {
 
     async searchSpotifyMultiple(query) {
         if (!query) return [];
-        const accessToken = await this.getAccessToken();
+        let accessToken = this.cachedToken;
+        if (!accessToken) {
+            accessToken = await this.getAccessToken();
+            this.cachedToken = accessToken;
+        }
         if (!accessToken) {
             BdApi.UI.showToast("Failed to retrieve Spotify token.", { type: "error" });
             return [];
         }
-        const url = `https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=${this.settings.maxResults}`;
         try {
-            const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
+            const response = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=${this.settings.maxResults}`, {
+                headers: { Authorization: `Bearer ${accessToken}` }
+            });
+            if (response.status === 401) {
+                this.cachedToken = null;
+                accessToken = await this.getAccessToken();
+                this.cachedToken = accessToken;
+                if (!accessToken) {
+                    BdApi.UI.showToast("Token expired, retry.", { type: "error" });
+                    return [];
+                }
+                const retry = await fetch(`https://api.spotify.com/v1/search?q=${encodeURIComponent(query)}&type=track&limit=${this.settings.maxResults}`, {
+                    headers: { Authorization: `Bearer ${accessToken}` }
+                });
+                if (!retry.ok) return [];
+                const data = await retry.json();
+                return data?.tracks?.items || [];
+            }
             if (!response.ok) {
-                BdApi.UI.showToast(`Spotify request failed: ${response.status} ${response.statusText}`, { type: "error" });
+                BdApi.UI.showToast(`Spotify request failed: ${response.status}`, { type: "error" });
                 return [];
             }
             const data = await response.json();
@@ -135,29 +184,35 @@ module.exports = class SendSpotifySong {
         }
     }
 
-    formatLink(spotifyUrl) {
-        if (!this.settings.hideMessage) return spotifyUrl;
-        const bars = " ||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||||​||";
-        return bars + spotifyUrl;
+    hasMaskInTextbox() {
+        const textArea = document.querySelector("div[role='textbox']");
+        const content = textArea?.textContent || "";
+        return content.includes("*||") || content.includes("<mask>");
     }
 
     insertTrackIntoTextBox(spotifyUrl) {
-        const textToInsert = this.formatLink(spotifyUrl);
-        const textArea = document.querySelector("div[role='textbox']");
-        if (textArea) {
-            const inputEvent = new InputEvent("beforeinput", {
-                bubbles: true,
-                cancelable: true,
-                data: textToInsert,
-                inputType: "insertText"
-            });
-            textArea.dispatchEvent(inputEvent);
-            textArea.focus();
-            document.execCommand("insertText", false, textToInsert);
-            BdApi.UI.showToast("Track link inserted.", { type: "success" });
-        } else {
-            BdApi.UI.showToast("Message input box not found.", { type: "error" });
+        let textToInsert = spotifyUrl;
+        if (this.settings.hideMessage && !this.hasMaskInTextbox()) {
+            textToInsert = "<mask>" + spotifyUrl;
         }
+        
+        const textArea = document.querySelector("div[role='textbox']");
+        if (!textArea) {
+            BdApi.UI.showToast("Message input not found.", { type: "error" });
+            return;
+        }
+        
+        textArea.focus();
+        
+        const dt = new DataTransfer();
+        dt.setData("text/plain", textToInsert);
+        const pasteEvent = new ClipboardEvent("paste", {
+            clipboardData: dt,
+            bubbles: true,
+            cancelable: true
+        });
+        textArea.dispatchEvent(pasteEvent);
+        BdApi.UI.showToast("Track link inserted.", { type: "success" });
     }
 
     showModal() {
@@ -186,7 +241,7 @@ module.exports = class SendSpotifySong {
 
                 const handleItemClick = (track) => {
                     this.insertTrackIntoTextBox(track.external_urls.spotify);
-                    BdApi.UI.alert("", ""); // hack to close modal
+                    document.querySelector("[class*=backdrop]")?.click();
                 };
 
                 return React.createElement("div", { style: { display: "flex", flexDirection: "column", color: "var(--text-normal)" } },
@@ -218,7 +273,6 @@ module.exports = class SendSpotifySong {
                         }
                     }, "Search"),
                     results.length > 0 && React.createElement("div", {
-                        className: "simpleSpotifyScroll",
                         style: { maxHeight: "200px", overflowY: "auto", border: "none", width: "103.5%", borderRadius: "0", marginLeft: "2px" }
                     }, results.map((track) => {
                         const imageUrl = track.album?.images?.[0]?.url || "";
@@ -255,7 +309,7 @@ module.exports = class SendSpotifySong {
                 { type: "switch", id: "autoSearch", name: "Auto Search", note: "Automatically search when typing stops.", value: this.settings.autoSearch },
                 { type: "number", id: "debounceTime", name: "Debounce Time (seconds)", note: "Time to wait before auto-search.", value: this.settings.debounceTime, step: 0.1 },
                 { type: "number", id: "maxResults", name: "Max Results", note: "Number of tracks to show.", value: this.settings.maxResults },
-                { type: "switch", id: "hideMessage", name: "Hide Message", note: "Send link with hidden message bars.", value: this.settings.hideMessage },
+                { type: "switch", id: "hideMessage", name: "Hide Message", note: "Prepend <mask> to hide your message text.", value: this.settings.hideMessage },
                 { type: "text", id: "client_id", name: "Spotify Client ID", note: "Enter your Spotify Client ID.", value: this.settings.client_id },
                 { type: "text", id: "client_secret", name: "Spotify Client Secret", note: "Enter your Spotify Client Secret.", value: this.settings.client_secret }
             ],
