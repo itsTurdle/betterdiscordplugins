@@ -78,7 +78,6 @@ module.exports = class SendSpotifySong {
             const wrapper = document.createElement("div");
             wrapper.id = this.buttonId;
             wrapper.className = existingButton?.className || "";
-            wrapper.style.marginRight = "8px";
             
             const button = document.createElement("div");
             button.className = innerButton?.className || "";
@@ -90,7 +89,7 @@ module.exports = class SendSpotifySong {
             iconWrapper.className = innerButton?.firstElementChild?.className || "";
             iconWrapper.style.cssText = "display: flex; width: 24px; height: 24px; align-items: center; justify-content: center;";
             iconWrapper.innerHTML = `
-                <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" 
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" 
                      style="color: var(--interactive-normal); transition: color 0.15s ease;">
                     <path d="M9 3v10.55A4 4 0 1 0 11 17V7h4V3H9z"/>
                 </svg>
