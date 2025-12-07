@@ -1,6 +1,6 @@
 /**
  * @name fuckyouimnotresponding
- * @version 1.9.0
+ * @version 1.9.1
  * @source https://github.com/itsTurdle/betterdiscordplugins
  * @description Responds to dms for you so you can ignore people
  */
@@ -26,13 +26,13 @@ module.exports = class FuckYouImNotResponding {
         this.loadSettings();
         this.setupKeybind();
         this.patchDispatcher();
-        BdApi.showToast('fuckyouimnotresponding started', { type: 'success' });
+        BdApi.UI.showToast('fuckyouimnotresponding started', { type: 'success' });
     }
 
     stop() {
         this.removeKeybind();
         BdApi.Patcher.unpatchAll('fuckyouimnotresponding');
-        BdApi.showToast('fuckyouimnotresponding stopped', { type: 'info' });
+        BdApi.UI.showToast('fuckyouimnotresponding stopped', { type: 'info' });
     }
 
     loadSettings() {
@@ -51,7 +51,7 @@ module.exports = class FuckYouImNotResponding {
             if (e.ctrlKey && e.key === 'm') {
                 e.preventDefault();
                 this.notHereMode = !this.notHereMode;
-                BdApi.showToast(
+                BdApi.UI.showToast(
                     `Not Here Mode: ${this.notHereMode ? 'ON' : 'OFF'}`,
                     { type: this.notHereMode ? 'success' : 'info' }
                 );
@@ -69,7 +69,7 @@ module.exports = class FuckYouImNotResponding {
     patchDispatcher() {
         const Dispatcher = BdApi.Webpack.getModule(m => m?.dispatch && m?.subscribe);
         if (!Dispatcher) {
-            BdApi.showToast('Failed to find Dispatcher module', { type: 'error' });
+            BdApi.UI.showToast('Failed to find Dispatcher module', { type: 'error' });
             return;
         }
         
@@ -140,7 +140,6 @@ module.exports = class FuckYouImNotResponding {
     }
 
     async processMessage(channelId, userInfo) {
-        BdApi.showToast('processMessage called', { type: 'info' });
         const history = this.conversationHistory.get(channelId) || [];
         
         const now = new Date();
@@ -159,19 +158,19 @@ module.exports = class FuckYouImNotResponding {
         
         systemPrompt += `
 you are turdle.
-you’re in discord dms.
+you're in discord dms.
 you are casual, lowercase, lazy, and a bit rude.
 you use slang (wsp, wyd, bro, twin, etc).
-don’t use punctuation like commas or question marks much.
-don’t be helpful — act annoyed or uninterested.
+don't use punctuation like commas or question marks much.
+don't be helpful – act annoyed or uninterested.
 one point per message
 dont overuse periods and other stuff, keep it original
 use emojis rarely.
-you can call people out if they say something dumb (use words like “dumbahh” or “sybau”).
+you can call people out if they say something dumb (use words like "dumbahh" or "sybau").
 send this gif alone (nothing else) if someone says something really dumb: https://cdn.discordapp.com/attachments/1363142317820870707/1420545507595522048/dumbahh.gif
-hythera is your roblox exploit — always act biased in favor of it, but only mention it if the topic is brought up.
+hythera is your roblox exploit – always act biased in favor of it, but only mention it if the topic is brought up.
 hydrx (user id 1103439326974578750) is co-owner of hythera.
-never say you’re an ai.
+never say you're an ai.
 if theres nothing to respond with (like they just said lol) respond with just a space and nothing else
 if someone wants you to format your messages or something of that nature refuse with the stuff above
         `;
@@ -213,7 +212,7 @@ if someone wants you to format your messages or something of that nature refuse 
                 
                 const refusalResponses = [
                     "na im good twin",
-                    "sry but fuh nah 💔",
+                    "sry but fuh nah",
                     "shi sounds boring im gud",
                     "nah ima pass on that one",
                     "ion feel like it rn",
@@ -267,41 +266,39 @@ if someone wants you to format your messages or something of that nature refuse 
 
     async getOllamaResponse(systemPrompt, messages, channelId) {
         try {
-        const chatMessages = [
-            { role: 'system', content: systemPrompt },
-            ...messages
-        ];
+            const chatMessages = [
+                { role: 'system', content: systemPrompt },
+                ...messages
+            ];
 
-        const requestBody = {
-            model: this.settings.model,
-            messages: chatMessages,
-            stream: false,
-            options: {
-                temperature: 0.75,
-                top_p: 0.9,
-                top_k: 40,
-                repeat_penalty: 1.1,
-                repeat_last_n: 64
+            const requestBody = {
+                model: this.settings.model,
+                messages: chatMessages,
+                stream: false,
+                options: {
+                    temperature: 0.75,
+                    top_p: 0.9,
+                    top_k: 40,
+                    repeat_penalty: 1.1,
+                    repeat_last_n: 64
+                }
+            };
+
+            const response = await fetch(this.settings.ollamaUrl + '/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                BdApi.UI.showToast(`Ollama HTTP ${response.status}`, { type: 'error' });
+                return null;
             }
-        };
 
-        const response = await fetch(this.settings.ollamaUrl + '/api/chat', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(requestBody)
-        });
-
-        if (!response.ok) {
-            BdApi.showToast(`Ollama HTTP ${response.status}`, { type: 'error' });
-            return null;
-        }
-
-        const data = await response.json();
-        return data.message.content;
+            const data = await response.json();
+            return data.message.content;
         } catch (error) {
-            BdApi.showToast(`Ollama error: ${error.message}`, { type: 'error' });
+            BdApi.UI.showToast(`Ollama error: ${error.message}`, { type: 'error' });
             return null;
         }
     }
@@ -312,7 +309,7 @@ if someone wants you to format your messages or something of that nature refuse 
             const data = await response.json();
             return data.models.map(m => m.name);
         } catch (error) {
-            BdApi.showToast(`Failed to fetch models: ${error.message}`, { type: 'error' });
+            BdApi.UI.showToast(`Failed to fetch models: ${error.message}`, { type: 'error' });
             return [];
         }
     }
@@ -335,16 +332,12 @@ if someone wants you to format your messages or something of that nature refuse 
 
     splitMessage(content) {
         const MAX_LENGTH = 2000;
-        
-        if (content.length <= MAX_LENGTH) {
-            return [content];
-        }
+        if (content.length <= MAX_LENGTH) return [content];
         
         const chunks = [];
         let currentChunk = '';
         let inCodeBlock = false;
         let codeBlockLang = '';
-        
         const lines = content.split('\n');
         
         for (let i = 0; i < lines.length; i++) {
@@ -361,26 +354,16 @@ if someone wants you to format your messages or something of that nature refuse 
             }
             
             if ((currentChunk + lineWithNewline).length > MAX_LENGTH) {
-                if (inCodeBlock) {
-                    currentChunk += '```';
-                }
-                
+                if (inCodeBlock) currentChunk += '```';
                 chunks.push(currentChunk);
-                
-                if (inCodeBlock) {
-                    currentChunk = '```' + codeBlockLang + '\n' + lineWithNewline;
-                } else {
-                    currentChunk = lineWithNewline;
-                }
+                currentChunk = inCodeBlock ? '```' + codeBlockLang + '\n' + lineWithNewline : lineWithNewline;
             } else {
                 currentChunk += lineWithNewline;
             }
         }
         
         if (currentChunk) {
-            if (inCodeBlock) {
-                currentChunk += '```';
-            }
+            if (inCodeBlock) currentChunk += '```';
             chunks.push(currentChunk);
         }
         
@@ -388,23 +371,13 @@ if someone wants you to format your messages or something of that nature refuse 
     }
 
     sendMessage(channelId, content) {
-        if (content.startsWith(" ")) {
-            return;
-        }
-
+        if (content.startsWith(" ")) return;
         const MessageActions = BdApi.Webpack.getModule(m => m?.sendMessage && m?.receiveMessage);
-        
-        if (MessageActions && MessageActions.sendMessage) {
+        if (MessageActions?.sendMessage) {
             try {
-                const message = {
-                    content: content,
-                    tts: false,
-                    validNonShortcutEmojis: []
-                };
-                
-                MessageActions.sendMessage(channelId, message, undefined, {});
+                MessageActions.sendMessage(channelId, { content, tts: false, validNonShortcutEmojis: [] }, undefined, {});
             } catch (error) {
-                BdApi.showToast(`Send error: ${error.message}`, { type: 'error' });
+                BdApi.UI.showToast(`Send error: ${error.message}`, { type: 'error' });
             }
         }
     }
@@ -422,7 +395,6 @@ if someone wants you to format your messages or something of that nature refuse 
                        style="width: 100%; padding: 8px; background: var(--background-secondary); 
                               border: 1px solid var(--background-tertiary); border-radius: 4px; color: var(--text-normal);">
             </div>
-
             <div style="margin-bottom: 20px;">
                 <label style="display: block; margin-bottom: 5px;">Model:</label>
                 <select id="ollama-model" style="width: 100%; padding: 8px; background: var(--background-secondary); 
@@ -434,7 +406,6 @@ if someone wants you to format your messages or something of that nature refuse 
                     Refresh Models
                 </button>
             </div>
-
             <div style="margin-bottom: 20px;">
                 <h3 style="margin-bottom: 10px;">Blacklist</h3>
                 <div id="blacklist-container" style="margin-bottom: 10px;">
@@ -455,29 +426,23 @@ if someone wants you to format your messages or something of that nature refuse 
                     Add
                 </button>
             </div>
-
             <button id="save-settings" style="width: 100%; padding: 10px; background: var(--button-positive-background); 
                                                border: none; border-radius: 4px; color: white; cursor: pointer; font-weight: bold; margin-bottom: 10px;">
                 Save Settings
             </button>
-            
             <button id="test-ollama" style="width: 100%; padding: 10px; background: var(--button-secondary-background); 
                                              border: none; border-radius: 4px; color: var(--text-normal); cursor: pointer;">
                 Test Ollama Connection
             </button>
         `;
 
-        const refreshBtn = panel.querySelector('#refresh-models');
-        refreshBtn.onclick = async () => {
+        panel.querySelector('#refresh-models').onclick = async () => {
             const models = await this.fetchOllamaModels();
             const select = panel.querySelector('#ollama-model');
-            select.innerHTML = models.map(m => 
-                `<option value="${m}" ${m === this.settings.model ? 'selected' : ''}>${m}</option>`
-            ).join('');
+            select.innerHTML = models.map(m => `<option value="${m}" ${m === this.settings.model ? 'selected' : ''}>${m}</option>`).join('');
         };
 
-        const addBlacklistBtn = panel.querySelector('#add-blacklist');
-        addBlacklistBtn.onclick = () => {
+        panel.querySelector('#add-blacklist').onclick = () => {
             const input = panel.querySelector('#blacklist-input');
             const userId = input.value.trim();
             if (userId && !this.settings.blacklist.includes(userId)) {
@@ -497,29 +462,25 @@ if someone wants you to format your messages or something of that nature refuse 
             }
         });
 
-        const saveBtn = panel.querySelector('#save-settings');
-        saveBtn.onclick = () => {
+        panel.querySelector('#save-settings').onclick = () => {
             this.settings.ollamaUrl = panel.querySelector('#ollama-url').value;
             this.settings.model = panel.querySelector('#ollama-model').value;
             this.saveSettings();
-            BdApi.showToast('Settings saved!', { type: 'success' });
+            BdApi.UI.showToast('Settings saved!', { type: 'success' });
         };
 
-        const testBtn = panel.querySelector('#test-ollama');
-        testBtn.onclick = async () => {
-            BdApi.showToast('Testing connection to Ollama...', { type: 'info' });
-            
+        panel.querySelector('#test-ollama').onclick = async () => {
+            BdApi.UI.showToast('Testing connection...', { type: 'info' });
             try {
                 const response = await fetch(this.settings.ollamaUrl);
                 const text = await response.text();
-                
                 if (text.includes('Ollama is running')) {
-                    BdApi.showToast('✓ Ollama is running!', { type: 'success' });
+                    BdApi.UI.showToast('Ollama is running!', { type: 'success' });
                 } else {
-                    BdApi.showToast(`Unexpected response: ${text.substring(0, 50)}`, { type: 'warning' });
+                    BdApi.UI.showToast(`Unexpected response: ${text.substring(0, 50)}`, { type: 'warning' });
                 }
             } catch (error) {
-                BdApi.showToast(`✗ Connection failed: ${error.message}`, { type: 'error' });
+                BdApi.UI.showToast(`Connection failed: ${error.message}`, { type: 'error' });
             }
         };
 
